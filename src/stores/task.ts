@@ -532,6 +532,37 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  // ─── My Tasks (Pasta Pessoal) ───
+  const myTasks = ref<Task[]>([])
+
+  async function fetchMyTasks(userId: string) {
+    loading.value = true
+    const { data, error } = await supabase
+      .from(TASK_TABLE)
+      .select('*')
+      .or(`responsavel_1_id.eq.${userId},responsavel_2_id.eq.${userId}`)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('[TASK] Error fetching my tasks:', error.message)
+      myTasks.value = []
+    } else {
+      myTasks.value = data || []
+    }
+    loading.value = false
+  }
+
+  const myProjectNames = ref<Map<string, string>>(new Map())
+
+  async function fetchMyProjectNames() {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, name')
+    if (!error && data) {
+      myProjectNames.value = new Map(data.map(p => [p.id, p.name]))
+    }
+  }
+
   return {
     tasks,
     comments,
@@ -542,8 +573,12 @@ export const useTaskStore = defineStore('task', () => {
     undoLast,
     currentProjectTasks,
     projectCompletion,
+    myTasks,
+    myProjectNames,
+    fetchMyProjectNames,
     fetchAllProjectsCompletion,
     fetchTasks,
+    fetchMyTasks,
     createTask,
     updateTask,
     updateTaskPosition,

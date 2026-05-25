@@ -13,6 +13,8 @@
         <span class="stat-item">PROJETOS: {{ projectStore.projects.length }}</span>
         <span class="stat-sep">|</span>
         <span class="stat-item">DOCUMENTOS: {{ documentStore.documents.length }}</span>
+        <span class="stat-sep">|</span>
+        <span class="stat-item">MINHAS ATIVIDADES: {{ myTaskCount }}</span>
       </div>
       <div class="terminal-line dim time-line">
         <span class="live-time">{{ timeStr }}</span>
@@ -46,6 +48,26 @@
 
         <ModuleCard
           id="02"
+          title="PASTA PESSOAL"
+          :count="myTaskCount"
+          :expanded="expandedModule === 'personal'"
+          @toggle="toggleModule('personal')"
+        >
+          <div class="personal-content">
+            <p class="personal-summary" v-if="myTaskCount > 0">
+              VOCÊ POSSUI <span class="personal-highlight">{{ myTaskCount }}</span> ATIVIDADES ATRIBUÍDAS
+            </p>
+            <p class="personal-summary" v-else>
+              NENHUMA ATIVIDADE ATRIBUÍDA
+            </p>
+            <button class="personal-access-btn" @click="goToMyTasks">
+              [ ACESSAR PASTA PESSOAL ]
+            </button>
+          </div>
+        </ModuleCard>
+
+        <ModuleCard
+          id="03"
           title="DOCUMENTAÇÃO"
           :count="documentStore.documents.length"
           :expanded="expandedModule === 'docs'"
@@ -171,10 +193,22 @@ const userRole = computed(() => {
   return `${u.role} (${u.sigla})`
 })
 
+const myTaskCount = computed(() => taskStore.myTasks.length)
+
+function goToMyTasks() {
+  router.push('/minhas-atividades')
+}
+
 function toggleModule(module: string) {
   expandedModule.value = expandedModule.value === module ? null : module
   if (module === 'docs' && expandedModule.value === 'docs') {
     documentStore.fetchDocuments()
+  }
+  if (module === 'personal' && expandedModule.value === 'personal') {
+    if (authStore.currentUser) {
+      taskStore.fetchMyTasks(authStore.currentUser.id)
+      taskStore.fetchMyProjectNames()
+    }
   }
 }
 
@@ -447,6 +481,46 @@ onBeforeUnmount(() => {
 .footer-btn.danger:hover {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+/* ─── Pasta Pessoal ─── */
+.personal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.personal-summary {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.personal-highlight {
+  color: var(--blue-soft);
+  font-weight: var(--font-weight-bold);
+}
+
+.personal-access-btn {
+  padding: 6px 20px;
+  border: 1px solid var(--blue-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--blue-soft);
+  letter-spacing: 1.5px;
+  transition: all var(--transition-fast);
+  text-transform: uppercase;
+}
+
+.personal-access-btn:hover {
+  background: rgba(29, 121, 179, 0.1);
+  box-shadow: 0 0 12px rgba(29, 121, 179, 0.15);
 }
 
 /* ─── Toast Notification ─── */
