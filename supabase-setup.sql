@@ -97,8 +97,35 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS data_finalizacao TIMESTAMP WITH TIME 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'Desenvolvimento e Novos Projetos';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sigla TEXT DEFAULT 'DNP';
 
+-- Documents Table
+CREATE TABLE IF NOT EXISTS documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  file_url TEXT NOT NULL,
+  file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'doc', 'docx')),
+  version INTEGER DEFAULT 1,
+  uploaded_by UUID REFERENCES users(id),
+  project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Document Versions Table (history)
+CREATE TABLE IF NOT EXISTS document_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID REFERENCES documents(id) ON DELETE CASCADE NOT NULL,
+  file_url TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  uploaded_by UUID REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create storage bucket for task images (run once)
 INSERT INTO storage.buckets (id, name, public) VALUES ('task-images', 'task-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create storage bucket for corporate documents (run once)
+INSERT INTO storage.buckets (id, name, public) VALUES ('corporate-documents', 'corporate-documents', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Enable Realtime (ignore if already a member)
@@ -137,6 +164,8 @@ ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_versions ENABLE ROW LEVEL SECURITY;
 
 -- Allow public access (for development without auth)
 DROP POLICY IF EXISTS "Allow all for users" ON users;
@@ -145,9 +174,13 @@ DROP POLICY IF EXISTS "Allow all for tasks" ON tasks;
 DROP POLICY IF EXISTS "Allow all for comments" ON comments;
 DROP POLICY IF EXISTS "Allow all for reactions" ON reactions;
 DROP POLICY IF EXISTS "Allow all for connections" ON connections;
+DROP POLICY IF EXISTS "Allow all for documents" ON documents;
+DROP POLICY IF EXISTS "Allow all for document_versions" ON document_versions;
 CREATE POLICY "Allow all for users" ON users FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for projects" ON projects FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for tasks" ON tasks FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for comments" ON comments FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for reactions" ON reactions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for connections" ON connections FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for documents" ON documents FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for document_versions" ON document_versions FOR ALL USING (true) WITH CHECK (true);

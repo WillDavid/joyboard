@@ -67,9 +67,32 @@ export interface TaskImage {
   created_at: string
 }
 
+export interface AppDocument {
+  id: string
+  name: string
+  file_url: string
+  file_type: string
+  version: number
+  uploaded_by: string
+  project_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DocumentVersion {
+  id: string
+  document_id: string
+  file_url: string
+  version: number
+  uploaded_by: string
+  created_at: string
+}
+
 export const USER_TABLE = 'users'
 export const PROJECT_TABLE = 'projects'
 export const TASK_TABLE = 'tasks'
 export const COMMENT_TABLE = 'comments'
 export const CONNECTION_TABLE = 'connections'
 export const IMAGE_TABLE = 'task_images'
+export const DOCUMENT_TABLE = 'documents'
+export const DOCUMENT_VERSION_TABLE = 'document_versions'

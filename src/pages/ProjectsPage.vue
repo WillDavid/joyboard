@@ -2,26 +2,81 @@
   <div class="terminal" tabindex="0">
     <div class="terminal-header">
       <div class="terminal-line">
-        <span class="prompt">[{{ username }}]</span> JOYBOARD SYSTEMS — v1.0
+        <span class="prompt">[{{ username }}]</span>
+        <span class="typing-text">JOYBOARD SYSTEMS — v2.0</span>
+        <span class="blink-cursor">_</span>
       </div>
-      <div class="terminal-line dim">CONECTADO A: TUTILABS CORPORATIVO // {{ serverHost }}</div>
-      <div class="terminal-line dim">{{ timeStr }} // {{ userRole }}</div>
+      <div class="terminal-line dim">
+        CONECTADO // {{ serverHost.toUpperCase() }}
+      </div>
+      <div class="terminal-line stats-line">
+        <span class="stat-item">PROJETOS: {{ projectStore.projects.length }}</span>
+        <span class="stat-sep">|</span>
+        <span class="stat-item">DOCUMENTOS: {{ documentStore.documents.length }}</span>
+      </div>
+      <div class="terminal-line dim time-line">
+        <span class="live-time">{{ timeStr }}</span>
+        <span class="time-sep">//</span>
+        <span>{{ userRole }}</span>
+      </div>
       <hr class="sep-h thick">
-      <div class="terminal-line" style="margin-top: 8px;">
+      <div class="terminal-line module-prompt">
         SELECIONE MÓDULO:
       </div>
     </div>
 
     <div class="terminal-body">
       <div v-if="loading" class="loading-state">
-        <span class="dim">CARREGANDO...</span>
+        <span class="loader-text">CARREGANDO...</span>
       </div>
-      <ProjectList
-        v-else
-        :projects="projectStore.projects"
-        :completion="taskStore.projectCompletion"
-        @open="openProject"
-      />
+
+      <div v-else class="modules-area">
+        <ModuleCard
+          id="01"
+          title="PROJETOS"
+          :count="projectStore.projects.length"
+          :expanded="expandedModule === 'projects'"
+          @toggle="toggleModule('projects')"
+        >
+          <ProjectList
+            :projects="projectStore.projects"
+            :completion="taskStore.projectCompletion"
+          />
+        </ModuleCard>
+
+        <ModuleCard
+          id="02"
+          title="DOCUMENTAÇÃO"
+          :count="documentStore.documents.length"
+          :expanded="expandedModule === 'docs'"
+          @toggle="toggleModule('docs')"
+        >
+          <UploadZone @file-selected="handleFileSelected" />
+
+          <div v-if="uploadDoc" class="upload-confirm">
+            <span class="upload-confirm-name">{{ uploadDoc.name }}</span>
+            <input
+              v-model="uploadDocName"
+              class="upload-confirm-input"
+              placeholder="NOME DO DOCUMENTO"
+              @keydown.enter="confirmUpload"
+            />
+            <div class="upload-confirm-actions">
+              <button class="footer-btn" @click="cancelUpload">[ CANCELAR ]</button>
+              <button class="footer-btn" :disabled="!uploadDocName.trim()" @click="confirmUpload">[ ENVIAR ]</button>
+            </div>
+          </div>
+
+          <div class="doc-section-spacer"></div>
+
+          <DocumentationList
+            :documents="documentStore.documents"
+            :can-update="documentStore.isManager"
+            @view="openDocumentViewer"
+            @update="handleDocumentUpdate"
+          />
+        </ModuleCard>
+      </div>
     </div>
 
     <hr class="sep-h thick">
@@ -30,6 +85,8 @@
       <div class="footer-buttons">
         <button class="footer-btn" @click="showUserModal = true">[ CRIAR USUÁRIO ]</button>
         <button class="footer-btn" @click="openCreateProject">[ CRIAR PROJETO ]</button>
+        <button class="footer-btn" @click="showUploadModal = true">[ NOVO DOCUMENTO ]</button>
+        <button class="footer-btn" @click="openSettings">[ CONFIGURAÇÕES ]</button>
         <button class="footer-btn danger" @click="logout">[ SAIR ]</button>
       </div>
     </div>
@@ -44,6 +101,12 @@
       @close="showUserModal = false"
       @created="onUserCreated"
     />
+
+    <DocumentViewer
+      v-if="viewerDoc"
+      :doc="viewerDoc"
+      @close="viewerDoc = null"
+    />
   </div>
 </template>
 
@@ -53,20 +116,33 @@ import { useRouter } from 'vue-router'
 import { useProjectStore } from '../stores/project'
 import { useTaskStore } from '../stores/task'
 import { useAuthStore } from '../stores/auth'
+import { useDocumentStore } from '../stores/document'
 import { useClock } from '../composables/useClock'
+import type { AppDocument } from '../services/supabase'
+import ModuleCard from '../components/project/ModuleCard.vue'
 import ProjectList from '../components/project/ProjectList.vue'
 import ProjectFormModal from '../components/project/ProjectFormModal.vue'
 import UserFormModal from '../components/auth/UserFormModal.vue'
+import UploadZone from '../components/document/UploadZone.vue'
+import DocumentationList from '../components/document/DocumentationList.vue'
+import DocumentViewer from '../components/document/DocumentViewer.vue'
 
 const router = useRouter()
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
 const authStore = useAuthStore()
+const documentStore = useDocumentStore()
 const { timeStr } = useClock()
 
 const showUserModal = ref(false)
+const showUploadModal = ref(false)
 const loading = ref(true)
 const serverHost = ref(window.location.host)
+const expandedModule = ref<string | null>(null)
+const viewerDoc = ref<AppDocument | null>(null)
+
+const uploadDoc = ref<File | null>(null)
+const uploadDocName = ref('')
 
 const username = computed(() =>
   authStore.currentUser?.username.toUpperCase() || 'SISTEMA'
@@ -78,15 +154,19 @@ const userRole = computed(() => {
   return `${u.role} (${u.sigla})`
 })
 
+function toggleModule(module: string) {
+  expandedModule.value = expandedModule.value === module ? null : module
+  if (module === 'docs' && expandedModule.value === 'docs') {
+    documentStore.fetchDocuments()
+  }
+}
+
 function openCreateProject() {
   projectStore.openProjectModal()
 }
 
-function openProject(id: string) {
-  const project = projectStore.projects.find(p => p.id === id)
-  if (project) {
-    router.push(`/project/${project.slug}`)
-  }
+function openSettings() {
+  projectStore.openProjectModal()
 }
 
 function logout() {
@@ -98,6 +178,40 @@ function onUserCreated() {
   authStore.fetchUsers()
 }
 
+function handleFileSelected(file: File) {
+  uploadDoc.value = file
+  uploadDocName.value = file.name.replace(/\.[^/.]+$/, '')
+}
+
+function cancelUpload() {
+  uploadDoc.value = null
+  uploadDocName.value = ''
+}
+
+async function confirmUpload() {
+  if (!uploadDoc.value || !uploadDocName.value.trim()) return
+  await documentStore.uploadDocument(uploadDoc.value, uploadDocName.value.trim())
+  uploadDoc.value = null
+  uploadDocName.value = ''
+}
+
+function openDocumentViewer(doc: AppDocument) {
+  viewerDoc.value = doc
+}
+
+function handleDocumentUpdate(doc: AppDocument) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.pdf,.doc,.docx'
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (file) {
+      await documentStore.updateDocument(doc.id, file)
+    }
+  }
+  input.click()
+}
+
 onMounted(async () => {
   if (!authStore.authenticated) {
     router.push('/')
@@ -106,7 +220,8 @@ onMounted(async () => {
   await Promise.all([
     projectStore.fetchProjects(),
     taskStore.fetchAllProjectsCompletion(),
-    authStore.fetchUsers()
+    authStore.fetchUsers(),
+    documentStore.fetchDocuments()
   ])
   taskStore.startOverdueCheck()
   loading.value = false
@@ -130,15 +245,83 @@ onBeforeUnmount(() => {
   outline: none;
 }
 
-.terminal-header { flex-shrink: 0; }
+.terminal-header {
+  flex-shrink: 0;
+}
 
-.terminal-line { line-height: 1.6; }
+.terminal-line {
+  line-height: 1.7;
+}
 
-.terminal-line.dim { color: var(--text-dim); font-size: 11px; }
+.terminal-line.dim {
+  color: var(--text-dim);
+  font-size: 11px;
+}
 
-.prompt { color: var(--blue-soft); margin-right: 8px; }
+.prompt {
+  color: var(--blue-soft);
+  margin-right: 6px;
+}
 
-.terminal-body { flex: 1; padding: var(--space-lg) 0; }
+.typing-text {
+  letter-spacing: 2px;
+}
+
+.blink-cursor {
+  animation: blink-cursor 0.8s step-end infinite;
+  color: var(--blue-soft);
+  margin-left: 2px;
+}
+
+.stats-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.stat-item {
+  letter-spacing: 0.5px;
+}
+
+.stat-sep {
+  color: var(--line-border);
+}
+
+.time-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-time {
+  color: var(--blue-soft);
+  font-weight: var(--font-weight-semibold);
+}
+
+.time-sep {
+  color: var(--line-border);
+}
+
+.module-prompt {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.terminal-body {
+  flex: 1;
+  padding: var(--space-lg) 0;
+}
+
+.modules-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 .loading-state {
   display: flex;
@@ -147,7 +330,57 @@ onBeforeUnmount(() => {
   padding: var(--space-xxl);
 }
 
-.dim { color: var(--text-dim); font-size: 11px; }
+.loader-text {
+  color: var(--text-dim);
+  font-size: 11px;
+  animation: blink-cursor 1s step-end infinite;
+}
+
+.dim {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.upload-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  border: 1px solid var(--blue-soft);
+  background: rgba(74, 141, 184, 0.04);
+}
+
+.upload-confirm-name {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
+}
+
+.upload-confirm-input {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.upload-confirm-input:focus {
+  border-color: var(--blue-secondary);
+}
+
+.upload-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.doc-section-spacer {
+  height: 8px;
+}
 
 .terminal-footer {
   flex-shrink: 0;
@@ -158,6 +391,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   gap: var(--space-md);
+  flex-wrap: wrap;
 }
 
 .footer-btn {
@@ -165,7 +399,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line-border);
   background: transparent;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 10px;
   font-family: var(--font-mono);
   color: var(--text-dim);
   letter-spacing: 1.5px;
@@ -176,6 +410,11 @@ onBeforeUnmount(() => {
 .footer-btn:hover {
   border-color: var(--blue-soft);
   color: var(--blue-soft);
+}
+
+.footer-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .footer-btn.danger:hover {
