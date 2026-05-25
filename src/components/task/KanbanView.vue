@@ -141,7 +141,7 @@ function priorityLabel(priority: string): string {
 function getRespName(id: string | null): string {
   if (!id) return ''
   const u = authStore.users.find(u => u.id === id)
-  return u ? u.username.toUpperCase().slice(0, 5) : ''
+  return u ? u.username.toUpperCase() : ''
 }
 
 function getLinks(taskId: string): { id: string; dir: string; name: string }[] {

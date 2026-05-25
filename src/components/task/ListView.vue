@@ -31,8 +31,8 @@
           <span class="col-priority">{{ priorityLabel(task.priority) }}</span>
           <span class="col-resp">
             <span class="resp-tags">
-              <span v-if="getRespName(task.responsavel_1_id)" class="resp-tag">{{ getRespName(task.responsavel_1_id) }}</span>
-              <span v-if="getRespName(task.responsavel_2_id)" class="resp-tag">{{ getRespName(task.responsavel_2_id) }}</span>
+              <span v-if="getRespName(task.responsavel_1_id)" class="resp-tag">{{ getRespName(task.responsavel_1_id) }} <span class="resp-list-sigla">({{ getRespSigla(task.responsavel_1_id) }})</span></span>
+              <span v-if="getRespName(task.responsavel_2_id)" class="resp-tag">{{ getRespName(task.responsavel_2_id) }} <span class="resp-list-sigla">({{ getRespSigla(task.responsavel_2_id) }})</span></span>
               <span v-if="!task.responsavel_1_id && !task.responsavel_2_id" class="resp-none">—</span>
             </span>
           </span>
@@ -65,8 +65,8 @@
             <span class="col-priority">{{ priorityLabel(sub.priority) }}</span>
             <span class="col-resp">
               <span class="resp-tags">
-                <span v-if="getRespName(sub.responsavel_1_id)" class="resp-tag">{{ getRespName(sub.responsavel_1_id) }}</span>
-                <span v-if="getRespName(sub.responsavel_2_id)" class="resp-tag">{{ getRespName(sub.responsavel_2_id) }}</span>
+                <span v-if="getRespName(sub.responsavel_1_id)" class="resp-tag">{{ getRespName(sub.responsavel_1_id) }} <span class="resp-list-sigla">({{ getRespSigla(sub.responsavel_1_id) }})</span></span>
+                <span v-if="getRespName(sub.responsavel_2_id)" class="resp-tag">{{ getRespName(sub.responsavel_2_id) }} <span class="resp-list-sigla">({{ getRespSigla(sub.responsavel_2_id) }})</span></span>
                 <span v-if="!sub.responsavel_1_id && !sub.responsavel_2_id" class="resp-none">—</span>
               </span>
             </span>
@@ -153,7 +153,13 @@ function isOverdue(task: Task): boolean {
 function getRespName(id: string | null): string {
   if (!id) return ''
   const u = authStore.users.find(u => u.id === id)
-  return u ? u.username.toUpperCase().slice(0, 5) : ''
+  return u ? u.username.toUpperCase() : ''
+}
+
+function getRespSigla(id: string | null): string {
+  if (!id) return ''
+  const u = authStore.users.find(u => u.id === id)
+  return u ? u.sigla : ''
 }
 
 function getLinks(taskId: string): { id: string; dir: string; name: string }[] {
@@ -346,6 +352,11 @@ function getLinks(taskId: string): { id: string; dir: string; name: string }[] {
   border: 1px solid var(--line-border);
   padding: 0 2px;
   letter-spacing: 0.3px;
+}
+
+.resp-list-sigla {
+  color: var(--blue-soft);
+  font-size: 9px;
 }
 
 .resp-none {
