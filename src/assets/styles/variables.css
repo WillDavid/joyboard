@@ -1,0 +1,87 @@
+:root {
+  --font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 15px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --bg-primary: #04152A;
+  --bg-secondary: #061B33;
+  --bg-panel: #082038;
+  --bg-elevated: #0A2742;
+  --bg-input: #031223;
+
+  --text-primary: #D6ECFA;
+  --text-secondary: #B8D6EA;
+  --text-muted: #8FB6CF;
+  --text-dim: #5A7A96;
+  --text-inverse: #04152A;
+
+  --line-primary: #8EB7D6;
+  --line-soft: #547A96;
+  --line-border: #1A3A52;
+  --line-divider: #0D2A42;
+
+  --blue-primary: #0D5D92;
+  --blue-secondary: #1D79B3;
+  --blue-soft: #4A8DB8;
+  --blue-hover: #0A4A78;
+
+  --success: #8FBFA3;
+  --success-dark: #6A9A7A;
+  --warning: #D8C48E;
+  --danger: #B97D7D;
+  --danger-dark: #8A5A5A;
+
+  --status-criado: var(--line-soft);
+  --status-criado-light: var(--bg-secondary);
+  --status-fazendo: var(--blue-secondary);
+  --status-fazendo-light: #0A2A4A;
+  --status-pronto: var(--success);
+  --status-pronto-light: #0A2A1A;
+  --status-impedido: var(--danger);
+  --status-impedido-light: #2A1A1A;
+
+  --priority-low: var(--line-soft);
+  --priority-medium: var(--warning);
+  --priority-high: var(--danger);
+
+  --shadow-card: 0 1px 0 rgba(142, 183, 214, 0.1);
+  --shadow-card-hover: 0 1px 0 rgba(142, 183, 214, 0.2);
+  --shadow-modal: 0 4px 16px rgba(0,0,0,0.5);
+  --shadow-panel: 0 0 0 1px var(--line-border);
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+
+  --transition-fast: 80ms ease-out;
+  --transition-normal: 120ms ease-out;
+  --transition-slow: 180ms ease-out;
+
+  --z-canvas: 1;
+  --z-card: 10;
+  --z-connection: 5;
+  --z-topbar: 100;
+  --z-modal: 200;
+  --z-tooltip: 300;
+  --z-toast: 400;
+}
