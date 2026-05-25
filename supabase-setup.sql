@@ -124,9 +124,55 @@ CREATE TABLE IF NOT EXISTS document_versions (
 INSERT INTO storage.buckets (id, name, public) VALUES ('task-images', 'task-images', true)
 ON CONFLICT (id) DO NOTHING;
 
+-- Storage RLS policies for task-images bucket
+DROP POLICY IF EXISTS "Allow public read task-images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public insert task-images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public update task-images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public delete task-images" ON storage.objects;
+
+CREATE POLICY "Allow public read task-images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'task-images');
+
+CREATE POLICY "Allow public insert task-images"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'task-images');
+
+CREATE POLICY "Allow public update task-images"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'task-images')
+  WITH CHECK (bucket_id = 'task-images');
+
+CREATE POLICY "Allow public delete task-images"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'task-images');
+
 -- Create storage bucket for corporate documents (run once)
 INSERT INTO storage.buckets (id, name, public) VALUES ('corporate-documents', 'corporate-documents', true)
 ON CONFLICT (id) DO NOTHING;
+
+-- Storage RLS policies for corporate-documents bucket
+DROP POLICY IF EXISTS "Allow public read corporate-documents" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public insert corporate-documents" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public update corporate-documents" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public delete corporate-documents" ON storage.objects;
+
+CREATE POLICY "Allow public read corporate-documents"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'corporate-documents');
+
+CREATE POLICY "Allow public insert corporate-documents"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'corporate-documents');
+
+CREATE POLICY "Allow public update corporate-documents"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'corporate-documents')
+  WITH CHECK (bucket_id = 'corporate-documents');
+
+CREATE POLICY "Allow public delete corporate-documents"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'corporate-documents');
 
 -- Enable Realtime (ignore if already a member)
 DO $$
