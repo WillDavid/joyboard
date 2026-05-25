@@ -1,13 +1,20 @@
 <template>
   <div class="viewer-overlay" @click.self="emit('close')">
     <div class="viewer-modal">
-      <div class="viewer-bar"></div>
-      <button class="viewer-close" @click="emit('close')">[ ESC ]</button>
-
-      <div class="viewer-header">
-        <span class="tag">{{ typeLabel(doc.file_type) }}</span>
-        <span class="viewer-name">{{ doc.name }}</span>
-        <span class="viewer-version">v{{ doc.version }}</span>
+      <div class="viewer-top-bar">
+        <div class="viewer-top-left">
+          <span class="vt-bracket">[</span>
+          <span class="viewer-type-tag" :class="doc.file_type">{{ typeLabel(doc.file_type) }}</span>
+          <span class="vt-bracket">]</span>
+          <span class="viewer-name">{{ doc.name }}</span>
+        </div>
+        <div class="viewer-top-right">
+          <span class="viewer-version-badge">v{{ doc.version }}</span>
+          <div class="viewer-top-actions">
+            <a :href="doc.file_url" target="_blank" class="v-btn" title="Baixar">[ BAIXAR ]</a>
+            <button class="v-btn close-btn" @click="emit('close')">[ FECHAR ]</button>
+          </div>
+        </div>
       </div>
 
       <div class="viewer-body">
@@ -15,37 +22,42 @@
           v-if="doc.file_type === 'pdf'"
           :src="doc.file_url"
           class="pdf-iframe"
+          title="Visualizador de PDF"
         ></iframe>
 
-        <div v-else class="doc-info">
-          <div class="info-row">
-            <span class="info-label">NOME</span>
-            <span class="info-value">{{ doc.name }}</span>
+        <div v-else class="doc-info-panel">
+          <div class="dip-header">
+            <span class="dip-icon">[{{ typeLabel(doc.file_type) }}]</span>
+            <span class="dip-title">{{ doc.name }}</span>
           </div>
-          <div class="info-row">
-            <span class="info-label">TIPO</span>
-            <span class="info-value">{{ typeLabel(doc.file_type) }}</span>
+          <div class="dip-grid">
+            <div class="dip-row">
+              <span class="dip-label">VERSÃO</span>
+              <span class="dip-value">v{{ doc.version }}</span>
+            </div>
+            <div class="dip-row">
+              <span class="dip-label">TIPO</span>
+              <span class="dip-value">{{ typeLabel(doc.file_type) }}</span>
+            </div>
+            <div class="dip-row">
+              <span class="dip-label">UPLOAD</span>
+              <span class="dip-value">{{ formatDate(doc.created_at) }}</span>
+            </div>
+            <div class="dip-row">
+              <span class="dip-label">ATUALIZAÇÃO</span>
+              <span class="dip-value">{{ formatDate(doc.updated_at) }}</span>
+            </div>
+            <div class="dip-row">
+              <span class="dip-label">RESPONSÁVEL</span>
+              <span class="dip-value">{{ responsibleName }}</span>
+            </div>
           </div>
-          <div class="info-row">
-            <span class="info-label">VERSÃO</span>
-            <span class="info-value">v{{ doc.version }}</span>
+          <div class="dip-actions">
+            <a :href="doc.file_url" target="_blank" class="dip-btn">
+              [ BAIXAR ARQUIVO ]
+              <span class="dip-btn-hint">→</span>
+            </a>
           </div>
-          <div class="info-row">
-            <span class="info-label">UPLOAD</span>
-            <span class="info-value">{{ formatDate(doc.created_at) }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">ATUALIZAÇÃO</span>
-            <span class="info-value">{{ formatDate(doc.updated_at) }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">RESPONSÁVEL</span>
-            <span class="info-value">{{ responsibleName }}</span>
-          </div>
-
-          <a :href="doc.file_url" class="btn btn-primary download-btn" download>
-            [ BAIXAR ARQUIVO ]
-          </a>
         </div>
       </div>
     </div>
@@ -87,118 +99,232 @@ const responsibleName = computed(() => {
 .viewer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(4, 21, 42, 0.85);
+  background: rgba(2, 10, 24, 0.92);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--z-modal);
+  backdrop-filter: blur(4px);
 }
 
 .viewer-modal {
-  width: 800px;
-  max-width: 90vw;
-  max-height: 90vh;
+  width: 94vw;
+  max-width: 1400px;
+  height: 92vh;
+  max-height: 92vh;
   background: var(--bg-panel);
   border: 1px solid var(--line-border);
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 0 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 48px rgba(0, 0, 0, 0.6), 0 0 2px rgba(74, 141, 184, 0.15);
 }
 
-.viewer-bar {
-  height: 2px;
-  background: var(--blue-secondary);
+/* ─── Top Bar ─── */
+.viewer-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--line-border);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.viewer-top-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.vt-bracket {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.viewer-type-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--line-border);
+  letter-spacing: 0.5px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.viewer-type-tag.pdf { color: var(--danger); border-color: var(--danger); }
+.viewer-type-tag.doc { color: var(--blue-soft); border-color: var(--blue-soft); }
+.viewer-type-tag.docx { color: var(--blue-secondary); border-color: var(--blue-secondary); }
+
+.viewer-name {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 4px;
+}
+
+.viewer-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-.viewer-close {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 2px 6px;
+.viewer-version-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  border: 1px solid var(--line-border);
+  padding: 1px 6px;
+  letter-spacing: 0.3px;
+}
+
+.viewer-top-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.v-btn {
+  padding: 4px 10px;
   border: 1px solid var(--line-border);
   background: var(--bg-elevated);
   cursor: pointer;
   font-size: 10px;
   font-family: var(--font-mono);
   color: var(--text-dim);
-  z-index: 1;
+  letter-spacing: 1px;
   transition: all var(--transition-fast);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 
-.viewer-close:hover {
+.v-btn:hover {
+  border-color: var(--blue-soft);
+  color: var(--blue-soft);
+  background: rgba(74, 141, 184, 0.06);
+}
+
+.close-btn:hover {
   border-color: var(--danger);
   color: var(--danger);
 }
 
-.viewer-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  border-bottom: 1px solid var(--line-divider);
-}
-
-.viewer-name {
-  flex: 1;
-  font-size: 14px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-}
-
-.viewer-version {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  border: 1px solid var(--line-border);
-  padding: 1px 4px;
-}
-
+/* ─── Body ─── */
 .viewer-body {
   flex: 1;
-  overflow: auto;
-  padding: 16px;
+  overflow: hidden;
+  display: flex;
+  padding: 0;
 }
 
 .pdf-iframe {
   width: 100%;
-  height: 70vh;
-  border: 1px solid var(--line-border);
-  background: white;
+  height: 100%;
+  border: none;
+  background: #fff;
 }
 
-.doc-info {
+/* ─── DOC/DOCX info panel ─── */
+.doc-info-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px 0;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 40px;
+  gap: 24px;
 }
 
-.info-row {
+.dip-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line-divider);
+  gap: 10px;
 }
 
-.info-label {
+.dip-icon {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  border: 1px solid var(--line-border);
+  padding: 3px 8px;
+}
+
+.dip-title {
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
+.dip-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.dip-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--line-divider);
+  background: var(--bg-secondary);
+}
+
+.dip-label {
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 1px;
-  min-width: 100px;
+  min-width: 120px;
 }
 
-.info-value {
+.dip-value {
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
+  font-family: var(--font-mono);
 }
 
-.download-btn {
-  margin-top: 16px;
-  align-self: flex-start;
+.dip-actions {
+  margin-top: 8px;
+}
+
+.dip-btn {
+  padding: 6px 20px;
+  border: 1px solid var(--blue-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--blue-soft);
+  letter-spacing: 1.5px;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dip-btn:hover {
+  background: rgba(29, 121, 179, 0.1);
+  box-shadow: 0 0 12px rgba(29, 121, 179, 0.15);
+}
+
+.dip-btn-hint {
+  font-size: 14px;
+  transition: transform var(--transition-fast);
+}
+
+.dip-btn:hover .dip-btn-hint {
+  transform: translateX(3px);
 }
 </style>

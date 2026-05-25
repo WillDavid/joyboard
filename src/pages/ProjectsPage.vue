@@ -107,6 +107,11 @@
       :doc="viewerDoc"
       @close="viewerDoc = null"
     />
+
+    <div v-if="notification.show" class="toast" :class="notification.type">
+      <span class="toast-icon">{{ notification.type === 'success' ? '[OK]' : '[!!]' }}</span>
+      <span class="toast-msg">{{ notification.message }}</span>
+    </div>
   </div>
 </template>
 
@@ -143,6 +148,18 @@ const viewerDoc = ref<AppDocument | null>(null)
 
 const uploadDoc = ref<File | null>(null)
 const uploadDocName = ref('')
+
+const notification = ref<{ show: boolean; message: string; type: 'success' | 'error' }>({ show: false, message: '', type: 'success' })
+
+let notificationTimer: ReturnType<typeof setTimeout> | null = null
+
+function showNotification(message: string, type: 'success' | 'error' = 'success') {
+  if (notificationTimer) clearTimeout(notificationTimer)
+  notification.value = { show: true, message, type }
+  notificationTimer = setTimeout(() => {
+    notification.value.show = false
+  }, 3000)
+}
 
 const username = computed(() =>
   authStore.currentUser?.username.toUpperCase() || 'SISTEMA'
@@ -190,9 +207,14 @@ function cancelUpload() {
 
 async function confirmUpload() {
   if (!uploadDoc.value || !uploadDocName.value.trim()) return
-  await documentStore.uploadDocument(uploadDoc.value, uploadDocName.value.trim())
+  const result = await documentStore.uploadDocument(uploadDoc.value, uploadDocName.value.trim())
   uploadDoc.value = null
   uploadDocName.value = ''
+  if (result) {
+    showNotification(`DOCUMENTO "${result.name}" ENVIADO COM SUCESSO`, 'success')
+  } else {
+    showNotification('ERRO AO ENVIAR DOCUMENTO', 'error')
+  }
 }
 
 function openDocumentViewer(doc: AppDocument) {
@@ -206,7 +228,12 @@ function handleDocumentUpdate(doc: AppDocument) {
   input.onchange = async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (file) {
-      await documentStore.updateDocument(doc.id, file)
+      const result = await documentStore.updateDocument(doc.id, file)
+      if (result) {
+        showNotification(`"${doc.name}" ATUALIZADO — VERSÃO v${result.version}`, 'success')
+      } else {
+        showNotification('ERRO AO ATUALIZAR DOCUMENTO', 'error')
+      }
     }
   }
   input.click()
@@ -420,5 +447,56 @@ onBeforeUnmount(() => {
 .footer-btn.danger:hover {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+/* ─── Toast Notification ─── */
+.toast {
+  position: fixed;
+  bottom: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border: 1px solid var(--blue-secondary);
+  background: var(--bg-elevated);
+  z-index: var(--z-toast);
+  animation: toast-in 0.25s ease-out;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.4), 0 0 2px rgba(74, 141, 184, 0.2);
+}
+
+.toast.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.4), 0 0 2px rgba(185, 125, 125, 0.2);
+}
+
+.toast-icon {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--blue-soft);
+  letter-spacing: 0.5px;
+}
+
+.toast.error .toast-icon {
+  color: var(--danger);
+}
+
+.toast-msg {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-primary);
+  letter-spacing: 0.8px;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 </style>

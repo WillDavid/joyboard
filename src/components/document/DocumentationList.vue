@@ -30,7 +30,7 @@
       <span class="col-user">{{ getResponsibleName(doc.uploaded_by) }}</span>
       <span class="col-actions">
         <button class="action-btn" @click="handleView(doc)" title="Visualizar">[VER]</button>
-        <a :href="doc.file_url" class="action-btn" download title="Download">[DL]</a>
+        <a :href="doc.file_url" target="_blank" class="action-btn" download title="Download">[DL]</a>
         <button v-if="canUpdate" class="action-btn" @click="handleUpdate(doc)" title="Atualizar">[UP]</button>
       </span>
     </div>
