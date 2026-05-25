@@ -53,16 +53,22 @@
           :expanded="expandedModule === 'personal'"
           @toggle="toggleModule('personal')"
         >
-          <div class="personal-content">
-            <p class="personal-summary" v-if="myTaskCount > 0">
-              VOCÊ POSSUI <span class="personal-highlight">{{ myTaskCount }}</span> ATIVIDADES ATRIBUÍDAS
-            </p>
-            <p class="personal-summary" v-else>
-              NENHUMA ATIVIDADE ATRIBUÍDA
-            </p>
-            <button class="personal-access-btn" @click="goToMyTasks">
-              [ ACESSAR PASTA PESSOAL ]
-            </button>
+          <div v-if="myTaskCount === 0" class="personal-empty">
+            <span class="dim">NENHUMA ATIVIDADE ATRIBUÍDA</span>
+          </div>
+          <div v-else class="personal-task-list">
+            <div
+              v-for="task in myTasks.slice(0, 10)"
+              :key="task.id"
+              class="personal-task-row"
+              @click="openMyTask(task)"
+            >
+              <span class="pt-project">{{ getProjectName(task.project_id) }}</span>
+              <span class="pt-title">{{ task.title }}</span>
+              <span class="pt-status" :class="task.status">{{ statusLabel(task.status) }}</span>
+              <span class="pt-priority" :class="task.priority">{{ priorityLabel(task.priority) }}</span>
+              <span class="pt-date">{{ formatMyDate(task.data_fim_prevista) }}</span>
+            </div>
           </div>
         </ModuleCard>
 
@@ -130,6 +136,19 @@
       @close="viewerDoc = null"
     />
 
+    <TaskDetailModal
+      v-if="uiStore.isTaskModalOpen && !uiStore.isCreatingTask && selectedMyTask && !selectedMyTask.parent_id"
+      :task="selectedMyTask"
+      :is-creating="false"
+      @close="uiStore.closeTaskModal()"
+    />
+
+    <SubtaskDetailModal
+      v-if="uiStore.isTaskModalOpen && selectedMyTask && selectedMyTask.parent_id"
+      :task="selectedMyTask"
+      @close="uiStore.closeTaskModal()"
+    />
+
     <div v-if="notification.show" class="toast" :class="notification.type">
       <span class="toast-icon">{{ notification.type === 'success' ? '[OK]' : '[!!]' }}</span>
       <span class="toast-msg">{{ notification.message }}</span>
@@ -153,12 +172,16 @@ import UserFormModal from '../components/auth/UserFormModal.vue'
 import UploadZone from '../components/document/UploadZone.vue'
 import DocumentationList from '../components/document/DocumentationList.vue'
 import DocumentViewer from '../components/document/DocumentViewer.vue'
+import TaskDetailModal from '../components/task/TaskDetailModal.vue'
+import SubtaskDetailModal from '../components/task/SubtaskDetailModal.vue'
+import { useUIStore } from '../stores/ui'
 
 const router = useRouter()
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
 const authStore = useAuthStore()
 const documentStore = useDocumentStore()
+const uiStore = useUIStore()
 const { timeStr } = useClock()
 
 const showUserModal = ref(false)
@@ -173,6 +196,11 @@ const uploadDocName = ref('')
 
 const notification = ref<{ show: boolean; message: string; type: 'success' | 'error' }>({ show: false, message: '', type: 'success' })
 
+const selectedMyTask = computed(() => {
+  if (!uiStore.selectedTaskId) return null
+  return taskStore.myTasks.find(t => t.id === uiStore.selectedTaskId) || null
+})
+
 let notificationTimer: ReturnType<typeof setTimeout> | null = null
 
 function showNotification(message: string, type: 'success' | 'error' = 'success') {
@@ -182,6 +210,8 @@ function showNotification(message: string, type: 'success' | 'error' = 'success'
     notification.value.show = false
   }, 3000)
 }
+
+const myTasks = computed(() => taskStore.myTasks)
 
 const username = computed(() =>
   authStore.currentUser?.username.toUpperCase() || 'SISTEMA'
@@ -195,8 +225,28 @@ const userRole = computed(() => {
 
 const myTaskCount = computed(() => taskStore.myTasks.length)
 
-function goToMyTasks() {
-  router.push('/minhas-atividades')
+function openMyTask(task: any) {
+  uiStore.selectTask(task.id)
+}
+
+function getProjectName(projectId: string): string {
+  return taskStore.myProjectNames.get(projectId) || projectId.slice(0, 8)
+}
+
+function statusLabel(s: string): string {
+  const labels: Record<string, string> = { criado: 'CRIADO', fazendo: 'FAZENDO', pronto: 'PRONTO', impedido: 'IMPEDIDO' }
+  return labels[s] || s
+}
+
+function priorityLabel(p: string): string {
+  const labels: Record<string, string> = { low: 'BAIXA', medium: 'MÉDIA', high: 'ALTA' }
+  return labels[p] || p
+}
+
+function formatMyDate(d: string | null): string {
+  if (!d) return '—'
+  const parts = d.slice(0, 10).split('-')
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}` : d
 }
 
 function toggleModule(module: string) {
@@ -484,43 +534,86 @@ onBeforeUnmount(() => {
 }
 
 /* ─── Pasta Pessoal ─── */
-.personal-content {
+.personal-empty {
+  padding: 16px;
+  text-align: center;
+}
+
+.personal-task-list {
   display: flex;
   flex-direction: column;
+  gap: 1px;
+  padding: 4px 0;
+}
+
+.personal-task-row {
+  display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
-}
-
-.personal-summary {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  letter-spacing: 0.5px;
-  margin: 0;
-}
-
-.personal-highlight {
-  color: var(--blue-soft);
-  font-weight: var(--font-weight-bold);
-}
-
-.personal-access-btn {
-  padding: 6px 20px;
-  border: 1px solid var(--blue-secondary);
-  background: transparent;
+  gap: 8px;
+  padding: 5px 8px;
   cursor: pointer;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--blue-soft);
-  letter-spacing: 1.5px;
   transition: all var(--transition-fast);
-  text-transform: uppercase;
+  border-left: 1px solid transparent;
 }
 
-.personal-access-btn:hover {
-  background: rgba(29, 121, 179, 0.1);
-  box-shadow: 0 0 12px rgba(29, 121, 179, 0.15);
+.personal-task-row:hover {
+  background: rgba(74, 141, 184, 0.05);
+  border-left-color: var(--blue-soft);
+}
+
+.pt-project {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  border: 1px solid var(--line-border);
+  padding: 1px 4px;
+  letter-spacing: 0.3px;
+  min-width: 44px;
+  text-align: center;
+}
+
+.pt-title {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-status {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  padding: 1px 4px;
+  letter-spacing: 0.5px;
+  min-width: 50px;
+  text-align: center;
+}
+
+.pt-status.criado { color: var(--text-dim); border: 1px solid var(--line-border); }
+.pt-status.fazendo { color: var(--blue-soft); border: 1px solid var(--blue-soft); }
+.pt-status.pronto { color: var(--success); border: 1px solid var(--success); }
+.pt-status.impedido { color: var(--danger); border: 1px solid var(--danger); }
+
+.pt-priority {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  padding: 1px 4px;
+  letter-spacing: 0.3px;
+  min-width: 36px;
+  text-align: center;
+}
+
+.pt-priority.low { color: var(--text-dim); border: 1px solid var(--line-border); }
+.pt-priority.medium { color: var(--warning); border: 1px solid var(--warning); }
+.pt-priority.high { color: var(--danger); border: 1px solid var(--danger); }
+
+.pt-date {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  min-width: 52px;
+  text-align: right;
 }
 
 /* ─── Toast Notification ─── */
