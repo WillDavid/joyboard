@@ -11,7 +11,7 @@
         <span class="my-subtitle">// MINHAS ATIVIDADES</span>
       </div>
       <div class="my-header-right">
-        <span class="my-count">{{ myTasks.length }} ATIVIDADES</span>
+        <span class="my-count">{{ filteredTasks.length }}/{{ myTasks.length }} ATIVIDADES</span>
         <span class="my-sep">|</span>
         <div class="my-view-group">
           <button
@@ -23,9 +23,55 @@
           >
             [ {{ v.label }} ]
           </button>
+          <span class="view-sep"></span>
+          <button class="my-view-btn sair" @click="logout">[ SAIR ]</button>
         </div>
       </div>
     </header>
+
+    <div class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-search">
+          <span class="filter-icon">🔍</span>
+          <input
+            v-model="searchText"
+            class="filter-input"
+            placeholder="BUSCAR ATIVIDADE..."
+          />
+        </div>
+
+        <div class="filter-group">
+          <button
+            v-for="s in filterStatuses"
+            :key="s.value"
+            class="filter-chip"
+            :class="{ active: filterStatus === s.value }"
+            @click="filterStatus = s.value"
+          >
+            {{ s.label }}
+          </button>
+        </div>
+
+        <div class="filter-group">
+          <button
+            v-for="p in filterPriorities"
+            :key="p.value"
+            class="filter-chip"
+            :class="{ active: filterPriority === p.value }"
+            @click="filterPriority = p.value"
+          >
+            {{ p.label }}
+          </button>
+        </div>
+
+        <select v-model="filterProject" class="filter-select">
+          <option value="">TODOS PROJETOS</option>
+          <option v-for="p in projectOptions" :key="p.id" :value="p.id">
+            {{ p.name }}
+          </option>
+        </select>
+      </div>
+    </div>
 
     <div v-if="loading" class="my-loading">
       <span class="dim">CARREGANDO...</span>
@@ -33,12 +79,12 @@
 
     <template v-else>
       <div v-if="uiStore.currentView === 'visual'" class="my-visual">
-        <div v-if="myTasks.length === 0" class="my-empty">
-          <span class="dim">NENHUMA ATIVIDADE ATRIBUÍDA A VOCÊ</span>
+        <div v-if="filteredTasks.length === 0" class="my-empty">
+          <span class="dim">NENHUMA ATIVIDADE ENCONTRADA</span>
         </div>
         <div v-else class="my-card-grid">
           <div
-            v-for="task in parentTasks"
+            v-for="task in filteredParentTasks"
             :key="task.id"
             class="my-task-card"
             :class="`status-${task.status}`"
@@ -60,12 +106,12 @@
 
       <ListView
         v-else-if="uiStore.currentView === 'list'"
-        :tasks="myTasks"
+        :tasks="filteredTasks"
       />
 
       <KanbanView
         v-else-if="uiStore.currentView === 'kanban'"
-        :tasks="myTasks"
+        :tasks="filteredTasks"
       />
     </template>
 
@@ -85,7 +131,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { useTaskStore } from '../stores/task'
 import { useUIStore } from '../stores/ui'
 import { useAuthStore } from '../stores/auth'
@@ -95,6 +142,7 @@ import TaskDetailModal from '../components/task/TaskDetailModal.vue'
 import SubtaskDetailModal from '../components/task/SubtaskDetailModal.vue'
 import type { Task } from '../services/supabase'
 
+const router = useRouter()
 const taskStore = useTaskStore()
 const uiStore = useUIStore()
 const authStore = useAuthStore()
@@ -109,13 +157,71 @@ const loading = computed(() => taskStore.loading)
 
 const myTasks = computed(() => taskStore.myTasks)
 
-const parentTasks = computed(() =>
-  myTasks.value.filter(t => !t.parent_id)
+const filterStatuses = [
+  { value: '', label: 'TODOS' },
+  { value: 'criado', label: 'CRIADO' },
+  { value: 'fazendo', label: 'FAZENDO' },
+  { value: 'pronto', label: 'PRONTO' },
+  { value: 'impedido', label: 'IMPEDIDO' }
+]
+
+const filterPriorities = [
+  { value: '', label: 'TODAS' },
+  { value: 'low', label: 'BAIXA' },
+  { value: 'medium', label: 'MÉDIA' },
+  { value: 'high', label: 'ALTA' }
+]
+
+const searchText = ref('')
+const filterStatus = ref('')
+const filterPriority = ref('')
+const filterProject = ref('')
+
+const projectOptions = computed(() => {
+  const seen = new Set<string>()
+  const result: { id: string; name: string }[] = []
+  for (const task of myTasks.value) {
+    if (seen.has(task.project_id)) continue
+    seen.add(task.project_id)
+    const name = taskStore.myProjectNames.get(task.project_id)
+    if (name) result.push({ id: task.project_id, name })
+  }
+  return result
+})
+
+function matchesSearchT(t: Task, q: string): boolean {
+  if (!q) return true
+  const l = q.toLowerCase()
+  return t.title.toLowerCase().includes(l) || (t.description || '').toLowerCase().includes(l)
+}
+function matchesStatusT(t: Task, s: string): boolean { return !s || t.status === s }
+function matchesPriorityT(t: Task, p: string): boolean { return !p || t.priority === p }
+function matchesProjectT(t: Task, p: string): boolean { return !p || t.project_id === p }
+
+const filteredTasks = computed(() => {
+  const list = myTasks.value
+  const q = searchText.value
+  const st = filterStatus.value
+  const pr = filterPriority.value
+  const pj = filterProject.value
+
+  if (!q && !st && !pr && !pj) return list
+
+  return list.filter(t =>
+    matchesSearchT(t, q) &&
+    matchesStatusT(t, st) &&
+    matchesPriorityT(t, pr) &&
+    matchesProjectT(t, pj)
+  )
+})
+
+const filteredParentTasks = computed(() =>
+  filteredTasks.value.filter(t => !t.parent_id)
 )
 
 const selectedTask = computed(() => {
   if (!uiStore.selectedTaskId) return null
-  return taskStore.tasks.find(t => t.id === uiStore.selectedTaskId) || null
+  return taskStore.myTasks.find(t => t.id === uiStore.selectedTaskId) || null
 })
 
 function getProjectName(projectId: string): string {
@@ -133,6 +239,7 @@ function priorityLabel(p: string): string {
 }
 
 function formatDate(d: string): string {
+  if (!d) return ''
   const parts = d.slice(0, 10).split('-')
   if (parts.length !== 3) return d
   return `${parts[2]}/${parts[1]}`
@@ -146,8 +253,17 @@ function handleTaskClick(task: Task) {
   uiStore.selectTask(task.id)
 }
 
+function logout() {
+  authStore.logout()
+  router.push('/')
+}
+
 onMounted(async () => {
-  if (!authStore.currentUser) return
+  authStore.restoreSession()
+  if (!authStore.authenticated || !authStore.currentUser) {
+    router.push('/')
+    return
+  }
   uiStore.setView('visual')
   await Promise.all([
     taskStore.fetchMyTasks(authStore.currentUser.id),
@@ -254,6 +370,100 @@ onBeforeUnmount(() => {
   background: var(--bg-elevated);
   color: var(--blue-soft);
 }
+
+.view-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--line-border);
+  align-self: center;
+}
+
+.my-view-btn.sair:hover {
+  color: var(--danger);
+}
+
+/* ─── Filter Bar ─── */
+.filter-bar {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--line-border);
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line-border);
+  background: var(--bg-input);
+  padding: 2px 6px;
+}
+
+.filter-icon {
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+.filter-input {
+  border: none;
+  background: transparent;
+  padding: 3px 0;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  outline: none;
+  width: 140px;
+}
+
+.filter-input::placeholder { color: var(--text-dim); }
+
+.filter-group {
+  display: flex;
+  gap: 2px;
+}
+
+.filter-chip {
+  padding: 3px 8px;
+  border: 1px solid var(--line-border);
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  transition: all var(--transition-fast);
+}
+
+.filter-chip:hover {
+  border-color: var(--blue-soft);
+  color: var(--text-primary);
+}
+
+.filter-chip.active {
+  border-color: var(--blue-secondary);
+  color: var(--blue-soft);
+  background: rgba(29, 121, 179, 0.08);
+}
+
+.filter-select {
+  padding: 3px 6px;
+  border: 1px solid var(--line-border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 9px;
+  font-family: var(--font-mono);
+  outline: none;
+  cursor: pointer;
+}
+
+.filter-select:focus { border-color: var(--blue-secondary); }
 
 .my-loading {
   flex: 1;
@@ -372,4 +582,5 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
   color: var(--text-dim);
 }
+
 </style>

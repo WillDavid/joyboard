@@ -1,11 +1,61 @@
 <template>
   <div class="project-page" :class="`view-${uiStore.currentView}`">
-    <AppTopbar />
+    <AppTopbar :title="isGlobal ? 'GLOBAL' : undefined" :hide-visual="isGlobal" />
+
+    <div v-if="isGlobal || uiStore.currentView !== 'visual'" class="filter-bar">
+      <div class="filter-row">
+        <div class="filter-search">
+          <span class="filter-icon">🔍</span>
+          <input
+            v-model="searchText"
+            class="filter-input"
+            placeholder="BUSCAR ATIVIDADE..."
+          />
+        </div>
+
+        <div class="filter-group">
+          <button
+            v-for="s in filterStatuses"
+            :key="s.value"
+            class="filter-chip"
+            :class="{ active: filterStatus === s.value }"
+            @click="filterStatus = s.value"
+          >
+            {{ s.label }}
+          </button>
+        </div>
+
+        <div class="filter-group">
+          <button
+            v-for="p in filterPriorities"
+            :key="p.value"
+            class="filter-chip"
+            :class="{ active: filterPriority === p.value }"
+            @click="filterPriority = p.value"
+          >
+            {{ p.label }}
+          </button>
+        </div>
+
+        <select v-if="isGlobal" v-model="filterProject" class="filter-select">
+          <option value="">TODOS PROJETOS</option>
+          <option v-for="p in allProjectOptions" :key="p.id" :value="p.id">
+            {{ p.name }}
+          </option>
+        </select>
+
+        <select v-model="filterResponsavel" class="filter-select">
+          <option value="">TODOS RESPONSÁVEIS</option>
+          <option v-for="u in authStore.users" :key="u.id" :value="u.id">
+            {{ u.username.toUpperCase() }} ({{ u.sigla }})
+          </option>
+        </select>
+      </div>
+    </div>
 
     <template v-if="uiStore.currentView === 'visual'">
       <div class="canvas-container">
       <VueFlow
-        ref="vueFlowRef"
         :nodes="flowNodes"
         :edges="flowEdges"
         :zoom="uiStore.viewport.zoom"
@@ -29,6 +79,7 @@
               :is-selected="uiStore.selectedTaskId === data.task.id"
               :is-connection-source="uiStore.connectionSourceId === data.task.id"
               :is-connection-mode="uiStore.isConnectionMode"
+              :show-project="isGlobal"
               @click="handleTaskClick(data.task)"
               @start-connection="handleStartConnection(data.task.id)"
             />
@@ -61,12 +112,14 @@
 
     <ListView
       v-else-if="uiStore.currentView === 'list'"
-      :tasks="taskStore.currentProjectTasks"
+      :tasks="filteredProjectTasks"
+      :show-project="isGlobal"
     />
 
     <KanbanView
       v-else-if="uiStore.currentView === 'kanban'"
-      :tasks="taskStore.currentProjectTasks"
+      :tasks="filteredProjectTasks"
+      :show-project="isGlobal"
     />
 
       <TaskDetailModal
@@ -100,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, onMounted, onBeforeUnmount, markRaw, reactive, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, markRaw, reactive, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { VueFlow, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
@@ -126,10 +179,13 @@ const uiStore = useUIStore()
 const authStore = useAuthStore()
 const { subscribeToProject } = useRealtime()
 
-const { setViewport, fitView } = useVueFlow()
+const { setViewport, fitView, setEdges } = useVueFlow()
+
+const isGlobal = computed(() => route.params.slug === 'global')
 
 const flowNodes = computed<Node[]>(() => {
-  return taskStore.currentProjectTasks
+  const base = isGlobal.value ? taskStore.allTasks : taskStore.currentProjectTasks
+  return base
     .filter(t => !t.parent_id)
     .map(task => ({
       id: task.id,
@@ -152,6 +208,16 @@ const flowEdges = computed<Edge[]>(() => {
   }))
 })
 
+watch(flowEdges, (edges) => {
+  if (edges.length > 0) setEdges(edges)
+}, { immediate: true })
+
+watch(flowNodes, (nodes) => {
+  if (nodes.length > 0 && flowEdges.value.length > 0) {
+    setEdges(flowEdges.value)
+  }
+}, { immediate: true })
+
 const selectedTask = computed(() => {
   if (!uiStore.selectedTaskId) return null
   return taskStore.tasks.find(t => t.id === uiStore.selectedTaskId) || null
@@ -159,8 +225,88 @@ const selectedTask = computed(() => {
 
 const newTaskPosition = reactive({ x: 0, y: 0 })
 
+const searchText = ref('')
+const filterStatus = ref('')
+const filterPriority = ref('')
+const filterResponsavel = ref('')
+const filterProject = ref('')
+
+const allProjectOptions = computed(() => {
+  const result: { id: string; name: string }[] = []
+  for (const [id, name] of taskStore.allProjectNames) {
+    result.push({ id, name })
+  }
+  return result
+})
+
+const filterStatuses = [
+  { value: '', label: 'TODOS' },
+  { value: 'criado', label: 'CRIADO' },
+  { value: 'fazendo', label: 'FAZENDO' },
+  { value: 'pronto', label: 'PRONTO' },
+  { value: 'impedido', label: 'IMPEDIDO' }
+]
+
+const filterPriorities = [
+  { value: '', label: 'TODAS' },
+  { value: 'low', label: 'BAIXA' },
+  { value: 'medium', label: 'MÉDIA' },
+  { value: 'high', label: 'ALTA' }
+]
+
+function matchesSearch(task: Task, q: string): boolean {
+  if (!q) return true
+  const lower = q.toLowerCase()
+  return task.title.toLowerCase().includes(lower) || (task.description || '').toLowerCase().includes(lower)
+}
+
+function matchesStatus(task: Task, s: string): boolean {
+  return !s || task.status === s
+}
+
+function matchesPriority(task: Task, p: string): boolean {
+  return !p || task.priority === p
+}
+
+function matchesResponsavel(task: Task, r: string): boolean {
+  return !r || task.responsavel_1_id === r || task.responsavel_2_id === r
+}
+
+function matchesProject(task: Task, p: string): boolean {
+  return !p || task.project_id === p
+}
+
+const filteredProjectTasks = computed(() => {
+  const tasks = isGlobal.value ? taskStore.allTasks : taskStore.currentProjectTasks
+  const s = searchText.value
+  const st = filterStatus.value
+  const pr = filterPriority.value
+  const r = filterResponsavel.value
+  const pj = filterProject.value
+
+  if (!s && !st && !pr && !r && !pj) return tasks
+
+  return tasks.filter(task =>
+    matchesSearch(task, s) &&
+    matchesStatus(task, st) &&
+    matchesPriority(task, pr) &&
+    matchesResponsavel(task, r) &&
+    matchesProject(task, pj)
+  )
+})
+
 async function loadProject() {
   const slug = route.params.slug as string
+
+  if (slug === 'global') {
+    if (uiStore.currentView === 'visual') uiStore.setView('list')
+    await Promise.all([
+      taskStore.fetchAllTasks(),
+      authStore.fetchUsers()
+    ])
+    return
+  }
+
   await projectStore.fetchProjects()
   const project = projectStore.projects.find(p => p.slug === slug)
   if (!project) {
@@ -349,4 +495,87 @@ onBeforeUnmount(() => {
 }
 
 .fab-add-task:hover { border-color: var(--blue-soft); color: var(--blue-soft); }
+
+/* ─── Filter Bar ─── */
+.filter-bar {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--line-border);
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line-border);
+  background: var(--bg-input);
+  padding: 2px 6px;
+}
+
+.filter-icon {
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+.filter-input {
+  border: none;
+  background: transparent;
+  padding: 3px 0;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  outline: none;
+  width: 140px;
+}
+
+.filter-input::placeholder { color: var(--text-dim); }
+
+.filter-group {
+  display: flex;
+  gap: 2px;
+}
+
+.filter-chip {
+  padding: 3px 8px;
+  border: 1px solid var(--line-border);
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  transition: all var(--transition-fast);
+}
+
+.filter-chip:hover {
+  border-color: var(--blue-soft);
+  color: var(--text-primary);
+}
+
+.filter-chip.active {
+  border-color: var(--blue-secondary);
+  color: var(--blue-soft);
+  background: rgba(29, 121, 179, 0.08);
+}
+
+.filter-select {
+  padding: 3px 6px;
+  border: 1px solid var(--line-border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 9px;
+  font-family: var(--font-mono);
+  outline: none;
+  cursor: pointer;
+}
+
+.filter-select:focus { border-color: var(--blue-secondary); }
 </style>

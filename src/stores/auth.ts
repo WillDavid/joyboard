@@ -45,6 +45,25 @@ export const useAuthStore = defineStore('auth', () => {
     return true
   }
 
+  function restoreSession(): boolean {
+    try {
+      const raw = localStorage.getItem('joyboard_session')
+      if (!raw) return false
+      const data = JSON.parse(raw)
+      if (!data.user || !data.timestamp) return false
+      if (Date.now() - data.timestamp > 30 * 24 * 60 * 60 * 1000) {
+        localStorage.removeItem('joyboard_session')
+        return false
+      }
+      currentUser.value = data.user
+      authenticated.value = true
+      return true
+    } catch {
+      localStorage.removeItem('joyboard_session')
+      return false
+    }
+  }
+
   function logout() {
     currentUser.value = null
     authenticated.value = false
@@ -56,6 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser,
     authenticated,
     fetchUsers,
+    restoreSession,
     login,
     logout
   }

@@ -23,6 +23,7 @@
               @click="openTask(task)"
             >
               <div class="kanban-card-header">
+                <span v-if="showProject" class="kanban-project-tag">{{ getProjectName(task.project_id) }}</span>
                 <h4>{{ task.title }}</h4>
               </div>
               <p v-if="task.description" class="kanban-card-desc">
@@ -65,11 +66,16 @@ import { useAuthStore } from '../../stores/auth'
 
 const props = defineProps<{
   tasks: Task[]
+  showProject?: boolean
 }>()
 
 const uiStore = useUIStore()
 const taskStore = useTaskStore()
 const authStore = useAuthStore()
+
+function getProjectName(projectId: string): string {
+  return taskStore.allProjectNames.get(projectId) || taskStore.myProjectNames.get(projectId) || projectId.slice(0, 8)
+}
 const draggedTaskId = ref<string | null>(null)
 const dragOverCol = ref<string | null>(null)
 
@@ -258,6 +264,16 @@ function isOverdue(task: Task): boolean {
   border: 1px solid var(--blue-soft);
 }
 
+.kanban-project-tag {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--blue-soft);
+  border: 1px solid var(--blue-secondary);
+  padding: 0 3px;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
 .kanban-card-header {
   display: flex;
   align-items: flex-start;
@@ -376,4 +392,5 @@ function isOverdue(task: Task): boolean {
   color: var(--text-dim);
   font-size: var(--font-size-xs);
 }
+
 </style>

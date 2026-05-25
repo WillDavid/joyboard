@@ -1,7 +1,8 @@
 <template>
   <div class="list-view">
-    <div class="list-table">
+    <div class="list-table" :class="{ 'with-project': showProject }">
       <div class="list-header">
+        <span class="col-project" v-if="showProject">PROJETO</span>
         <span class="col-title">ATIVIDADE</span>
         <span class="col-desc">DESCRIÇÃO</span>
         <span class="col-status">STATUS</span>
@@ -14,6 +15,7 @@
       </div>
       <template v-for="task in parentTasks" :key="task.id">
         <div class="list-row" :class="{ 'row-overdue': isOverdue(task) }" @click="openTask(task)">
+          <span class="col-project" v-if="showProject">{{ getProjectName(task.project_id) }}</span>
           <span class="col-title">
             <button v-if="hasSubtasks(task.id)" class="expand-btn" @click.stop="toggleExpand(task.id)">
               {{ expanded.has(task.id) ? '[-]' : '[+]' }}
@@ -50,6 +52,7 @@
         <div v-for="sub in taskStore.getSubtasks(task.id)" v-show="expanded.has(task.id)" :key="sub.id" class="list-sub-wrapper">
           <div class="sub-tree-line"></div>
           <div class="list-row list-sub-row" :class="{ 'row-overdue': isOverdue(sub) }" @click="openTask(sub)">
+            <span class="col-project" v-if="showProject">{{ getProjectName(sub.project_id) }}</span>
             <span class="col-title">
               <span class="sub-conn">└─</span>
               <span class="title-text">{{ sub.title }}</span>
@@ -96,11 +99,16 @@ import { useAuthStore } from '../../stores/auth'
 
 const props = defineProps<{
   tasks: Task[]
+  showProject?: boolean
 }>()
 
 const taskStore = useTaskStore()
 const uiStore = useUIStore()
 const authStore = useAuthStore()
+
+function getProjectName(projectId: string): string {
+  return taskStore.allProjectNames.get(projectId) || taskStore.myProjectNames.get(projectId) || projectId.slice(0, 8)
+}
 const expanded = ref<Set<string>>(new Set())
 
 const parentTasks = computed(() =>
@@ -173,6 +181,21 @@ function getLinks(taskId: string): { id: string; dir: string; name: string }[] {
 
 .list-table {
   min-width: 960px;
+}
+
+.list-table.with-project .list-header,
+.list-table.with-project .list-row {
+  grid-template-columns: 0.8fr 1.8fr 1.5fr 1fr 1fr 1fr 0.8fr 0.8fr 0.8fr 1fr;
+}
+
+.col-project {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--blue-soft);
+  letter-spacing: 0.3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .list-header {
@@ -393,4 +416,5 @@ function getLinks(taskId: string): { id: string; dir: string; name: string }[] {
   color: var(--text-muted);
   font-size: var(--font-size-sm);
 }
+
 </style>

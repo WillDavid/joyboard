@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useAuthStore } from './stores/auth'
 import { useProjectStore } from './stores/project'
 
+const authStore = useAuthStore()
 const projectStore = useProjectStore()
 
 onMounted(() => {
+  authStore.restoreSession()
   projectStore.fetchProjects()
 })
 </script>

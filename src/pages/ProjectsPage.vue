@@ -40,6 +40,14 @@
           :expanded="expandedModule === 'projects'"
           @toggle="toggleModule('projects')"
         >
+          <div class="global-entry" @click="goToGlobal">
+            <span class="tree-conn">├─</span>
+            <span class="entry-name">GLOBAL</span>
+            <span class="entry-pct">{{ globalPercent }}%</span>
+            <div class="progress-track" style="width: 60px;">
+              <div class="progress-fill static" :style="{ width: globalPercent + '%' }"></div>
+            </div>
+          </div>
           <ProjectList
             :projects="projectStore.projects"
             :completion="taskStore.projectCompletion"
@@ -53,16 +61,10 @@
           :expanded="expandedModule === 'personal'"
           @toggle="toggleModule('personal')"
         >
-          <div class="personal-content">
-            <p class="personal-summary" v-if="myTaskCount > 0">
-              VOCÊ POSSUI <span class="personal-highlight">{{ myTaskCount }}</span> ATIVIDADES ATRIBUÍDAS
-            </p>
-            <p class="personal-summary" v-else>
-              NENHUMA ATIVIDADE ATRIBUÍDA
-            </p>
-            <button class="personal-access-btn" @click="goToMyTasks">
-              [ ACESSAR PASTA PESSOAL ]
-            </button>
+          <div class="personal-entry" @click="goToMyTasks">
+            <span class="tree-conn">├─</span>
+            <span class="personal-link">ACESSAR PASTA PESSOAL</span>
+            <span class="personal-count">{{ myTaskCount }} ATIV.</span>
           </div>
         </ModuleCard>
 
@@ -107,11 +109,19 @@
       <div class="footer-buttons">
         <button class="footer-btn" @click="showUserModal = true">[ CRIAR USUÁRIO ]</button>
         <button class="footer-btn" @click="openCreateProject">[ CRIAR PROJETO ]</button>
-        <button class="footer-btn" @click="showUploadModal = true">[ NOVO DOCUMENTO ]</button>
+        <button class="footer-btn" @click="handleNewDocument">[ NOVO DOCUMENTO ]</button>
         <button class="footer-btn" @click="openSettings">[ CONFIGURAÇÕES ]</button>
         <button class="footer-btn danger" @click="logout">[ SAIR ]</button>
       </div>
     </div>
+
+    <input
+      ref="docPickerRef"
+      type="file"
+      accept=".pdf,.doc,.docx"
+      hidden
+      @change="handleFooterDocPick"
+    />
 
     <ProjectFormModal
       v-if="projectStore.isProjectModalOpen"
@@ -162,7 +172,6 @@ const documentStore = useDocumentStore()
 const { timeStr } = useClock()
 
 const showUserModal = ref(false)
-const showUploadModal = ref(false)
 const loading = ref(true)
 const serverHost = ref(window.location.host)
 const expandedModule = ref<string | null>(null)
@@ -170,6 +179,7 @@ const viewerDoc = ref<AppDocument | null>(null)
 
 const uploadDoc = ref<File | null>(null)
 const uploadDocName = ref('')
+const docPickerRef = ref<HTMLInputElement | null>(null)
 
 const notification = ref<{ show: boolean; message: string; type: 'success' | 'error' }>({ show: false, message: '', type: 'success' })
 
@@ -195,12 +205,21 @@ const userRole = computed(() => {
 
 const myTaskCount = computed(() => taskStore.myTasks.length)
 
+const globalPercent = computed(() => {
+  const all = taskStore.allTasks
+  if (all.length === 0) return 0
+  return Math.round((all.filter(t => t.status === 'pronto').length / all.length) * 100)
+})
+
 function goToMyTasks() {
   router.push('/minhas-atividades')
 }
 
 function toggleModule(module: string) {
   expandedModule.value = expandedModule.value === module ? null : module
+  if (module === 'projects' && expandedModule.value === 'projects') {
+    taskStore.fetchAllTasks()
+  }
   if (module === 'docs' && expandedModule.value === 'docs') {
     documentStore.fetchDocuments()
   }
@@ -210,6 +229,10 @@ function toggleModule(module: string) {
       taskStore.fetchMyProjectNames()
     }
   }
+}
+
+function goToGlobal() {
+  router.push('/project/global')
 }
 
 function openCreateProject() {
@@ -251,6 +274,22 @@ async function confirmUpload() {
   }
 }
 
+function handleNewDocument() {
+  expandedModule.value = 'docs'
+  documentStore.fetchDocuments()
+  setTimeout(() => docPickerRef.value?.click(), 300)
+}
+
+function handleFooterDocPick(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (file) {
+    handleFileSelected(file)
+    setTimeout(() => {
+      document.querySelector('.upload-confirm-input') as HTMLInputElement | null
+    }, 100)
+  }
+}
+
 function openDocumentViewer(doc: AppDocument) {
   viewerDoc.value = doc
 }
@@ -274,6 +313,7 @@ function handleDocumentUpdate(doc: AppDocument) {
 }
 
 onMounted(async () => {
+  authStore.restoreSession()
   if (!authStore.authenticated) {
     router.push('/')
     return
@@ -483,13 +523,74 @@ onBeforeUnmount(() => {
   color: var(--danger);
 }
 
-/* ─── Pasta Pessoal ─── */
-.personal-content {
+/* ─── Global Entry ─── */
+.global-entry {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
+  gap: 8px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-left: 1px solid transparent;
+}
+
+.global-entry:hover {
+  background: rgba(74, 141, 184, 0.05);
+  border-left-color: var(--blue-soft);
+}
+
+.global-entry .entry-name {
+  flex: 1;
+  letter-spacing: 1px;
+  font-size: 12px;
+  color: var(--blue-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.global-entry .entry-pct {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  min-width: 28px;
+  text-align: right;
+  letter-spacing: 0.3px;
+}
+
+/* ─── Pasta Pessoal ─── */
+.personal-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-left: 1px solid transparent;
+}
+
+.personal-entry:hover {
+  background: rgba(74, 141, 184, 0.05);
+  border-left-color: var(--blue-soft);
+}
+
+.tree-conn {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  min-width: 22px;
+}
+
+.personal-link {
+  flex: 1;
+  letter-spacing: 1px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.personal-count {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  letter-spacing: 0.3px;
 }
 
 .personal-summary {

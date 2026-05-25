@@ -7,14 +7,17 @@
         <span class="logo-bracket">]</span>
       </router-link>
       <span class="sep-v"></span>
-      <span class="tag" v-if="projectStore.currentProject">
+      <span class="tag" v-if="title">
+        {{ title }}
+      </span>
+      <span class="tag" v-else-if="projectStore.currentProject">
         {{ projectStore.currentProject.name.toUpperCase() }}
       </span>
-      <span class="sep-v" v-if="projectStore.currentProject"></span>
-      <div class="progress-track project-progress" v-if="projectStore.currentProject" style="width: 80px;">
+      <span class="sep-v" v-if="title || projectStore.currentProject"></span>
+      <div class="progress-track project-progress" v-if="projectStore.currentProject && !title" style="width: 80px;">
         <div class="progress-fill static" :style="{ width: completionPercent + '%' }"></div>
       </div>
-      <span class="status-label" v-if="projectStore.currentProject" style="min-width: 28px;">{{ completionPercent }}%</span>
+      <span class="status-label" v-if="projectStore.currentProject && !title" style="min-width: 28px;">{{ completionPercent }}%</span>
     </div>
 
     <div class="topbar-right">
@@ -42,6 +45,11 @@ import { useTaskStore } from '../../stores/task'
 import { useUIStore } from '../../stores/ui'
 import { useAuthStore } from '../../stores/auth'
 
+const props = defineProps<{
+  title?: string
+  hideVisual?: boolean
+}>()
+
 const router = useRouter()
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
@@ -55,11 +63,14 @@ const completionPercent = computed(() => {
   return Math.round((done / tasks.length) * 100)
 })
 
-const views = [
-  { key: 'visual' as const, label: 'PAINEL' },
-  { key: 'list' as const, label: 'LISTA' },
-  { key: 'kanban' as const, label: 'KANBAN' }
-]
+const views = computed(() => {
+  const all = [
+    { key: 'visual' as const, label: 'PAINEL' },
+    { key: 'list' as const, label: 'LISTA' },
+    { key: 'kanban' as const, label: 'KANBAN' }
+  ]
+  return props.hideVisual ? all.filter(v => v.key !== 'visual') : all
+})
 
 function openSettings() {
   projectStore.openProjectModal()

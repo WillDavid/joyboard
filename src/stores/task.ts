@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { supabase, type Task, type Comment, type Connection, type TaskImage, TASK_TABLE, COMMENT_TABLE, CONNECTION_TABLE, IMAGE_TABLE } from '../services/supabase'
 import { useProjectStore } from './project'
 import { useUserStore } from './user'
+import { useAuthStore } from './auth'
 import { sanitize } from '../utils/security'
 
 export const useTaskStore = defineStore('task', () => {
@@ -14,6 +15,7 @@ export const useTaskStore = defineStore('task', () => {
 
   const projectStore = useProjectStore()
   const userStore = useUserStore()
+  const authStore = useAuthStore()
 
   const currentProjectTasks = computed(() =>
     tasks.value.filter(t => t.project_id === projectStore.currentProjectId)
@@ -117,7 +119,7 @@ export const useTaskStore = defineStore('task', () => {
 
     // Auto-start data_inicio when status changes to 'fazendo' (first time only)
     if (updates.status === 'fazendo') {
-      const existing = tasks.value.find(t => t.id === id)
+      const existing = tasks.value.find(t => t.id === id) || myTasks.value.find(t => t.id === id) || allTasks.value.find(t => t.id === id)
       if (existing && !existing.data_inicio) {
         const d = new Date()
         d.setHours(d.getHours() - 4)
@@ -134,7 +136,7 @@ export const useTaskStore = defineStore('task', () => {
 
     // Clear data_finalizacao when status leaves 'pronto'
     if (updates.status && updates.status !== 'pronto') {
-      const existing = tasks.value.find(t => t.id === id)
+      const existing = tasks.value.find(t => t.id === id) || myTasks.value.find(t => t.id === id) || allTasks.value.find(t => t.id === id)
       if (existing && existing.status === 'pronto') {
         safe.data_finalizacao = null
       }
@@ -155,13 +157,18 @@ export const useTaskStore = defineStore('task', () => {
     }
 
     if (data) {
-      const index = tasks.value.findIndex(t => t.id === id)
-      if (index !== -1) {
-        const oldStatus = tasks.value[index].status
-        tasks.value[index] = data
-        if (updates.status && updates.status !== oldStatus) {
-          logActivity('status_change', id, { from: oldStatus, to: updates.status })
-        }
+      function syncTaskIn(ref: { value: Task[] }) {
+        const idx = ref.value.findIndex(t => t.id === id)
+        if (idx !== -1) ref.value[idx] = data
+      }
+      syncTaskIn(tasks)
+      syncTaskIn(myTasks)
+      syncTaskIn(allTasks)
+
+      const old = tasks.value.find(t => t.id === id) || myTasks.value.find(t => t.id === id) || allTasks.value.find(t => t.id === id)
+      const oldStatus = old?.status
+      if (updates.status && oldStatus && updates.status !== oldStatus) {
+        logActivity('status_change', id, { from: oldStatus, to: updates.status })
       }
 
       // Cascade impedido to connected successors
@@ -422,6 +429,19 @@ export const useTaskStore = defineStore('task', () => {
     localStorage.setItem('joyboard_activities', JSON.stringify(activities.slice(-100)))
   }
 
+  function syncRecordToCollections(record: Task) {
+    for (const col of [tasks, myTasks, allTasks]) {
+      const idx = col.value.findIndex(t => t.id === record.id)
+      if (idx !== -1) col.value[idx] = record
+    }
+  }
+
+  function removeRecordFromCollections(id: string) {
+    for (const col of [tasks, myTasks, allTasks]) {
+      col.value = col.value.filter(t => t.id !== id)
+    }
+  }
+
   function handleRealtimeTask(payload: any) {
     const { eventType, new: newRecord, old: oldRecord } = payload
 
@@ -429,19 +449,25 @@ export const useTaskStore = defineStore('task', () => {
       case 'INSERT':
         if (newRecord.project_id === projectStore.currentProjectId) {
           const exists = tasks.value.find(t => t.id === newRecord.id)
-          if (!exists) {
-            tasks.value.push(newRecord)
+          if (!exists) tasks.value.push(newRecord)
+        }
+        if (authStore.currentUser) {
+          const uid = authStore.currentUser.id
+          if (newRecord.responsavel_1_id === uid || newRecord.responsavel_2_id === uid) {
+            const exists = myTasks.value.find(t => t.id === newRecord.id)
+            if (!exists) myTasks.value.unshift(newRecord)
           }
+        }
+        {
+          const exists = allTasks.value.find(t => t.id === newRecord.id)
+          if (!exists) allTasks.value.unshift(newRecord)
         }
         break
       case 'UPDATE':
-        const index = tasks.value.findIndex(t => t.id === newRecord.id)
-        if (index !== -1) {
-          tasks.value[index] = newRecord
-        }
+        syncRecordToCollections(newRecord)
         break
       case 'DELETE':
-        tasks.value = tasks.value.filter(t => t.id !== oldRecord.id)
+        removeRecordFromCollections(oldRecord.id)
         break
     }
   }
@@ -532,6 +558,34 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  // ─── Global View ───
+  const allTasks = ref<Task[]>([])
+  const allProjectNames = ref<Map<string, string>>(new Map())
+
+  async function fetchAllTasks() {
+    loading.value = true
+    const { data, error } = await supabase
+      .from(TASK_TABLE)
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('[TASK] Error fetching all tasks:', error.message)
+      allTasks.value = []
+    } else {
+      allTasks.value = data || []
+    }
+
+    const { data: projects } = await supabase
+      .from('projects')
+      .select('id, name')
+    if (projects) {
+      allProjectNames.value = new Map(projects.map(p => [p.id, p.name]))
+    }
+
+    loading.value = false
+  }
+
   // ─── My Tasks (Pasta Pessoal) ───
   const myTasks = ref<Task[]>([])
 
@@ -575,6 +629,9 @@ export const useTaskStore = defineStore('task', () => {
     projectCompletion,
     myTasks,
     myProjectNames,
+    allTasks,
+    allProjectNames,
+    fetchAllTasks,
     fetchMyProjectNames,
     fetchAllProjectsCompletion,
     fetchTasks,
